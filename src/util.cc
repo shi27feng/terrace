@@ -28,8 +28,8 @@
 #include "util.h"
 
 namespace graphstore {
-	/*return the integer representation of the base */
 
+	/*return the integer representation of the base */
 	float cal_time_elapsed(struct timeval* start, struct timeval* end)
 	{
 		struct timeval elapsed;
@@ -42,8 +42,9 @@ namespace graphstore {
 		return (elapsed.tv_sec * 1000000 + elapsed.tv_usec)/1000000.f;
 	}
 
-	void print_time_elapsed(std::string desc, struct timeval* start, struct
-													timeval* end)
+	void print_time_elapsed(std::string desc, 
+	                        struct timeval* start,
+							struct timeval* end)
 	{
 		struct timeval elapsed;
 		if (start->tv_usec > end->tv_usec) {

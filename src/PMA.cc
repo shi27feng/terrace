@@ -12,7 +12,7 @@ static uint_t find_leaf(edge_list_t *list, uint_t index) {
 }
 
 
-static uint_t find_prev_valid(uint32_t volatile  * volatile dests, uint_t start) {
+static uint_t find_prev_valid(uint32_t volatile * volatile dests, uint_t start) {
   while (dests[start] == NULL_VAL) {
     start--;
   }
@@ -134,6 +134,7 @@ bool PMA::grab_all_locks(uint64_t task_id, bool exclusive, REASONS reason) {
   return true;
 #endif
 }
+
 void PMA::release_all_locks(uint64_t task_id, bool exclusive, REASONS reason) {
   #if ENABLE_PMA_LOCK != 1
       return;
@@ -176,24 +177,25 @@ vector<tuple<uint32_t, uint32_t, uint32_t>> PMA::get_edges() {
   vector<tuple<uint32_t, uint32_t, uint32_t>> output;
 
   for (uint_t i = 0; i < n; i++) {
-    uint_t start = nodes[i].beginning;
-    uint_t end = nodes[i].end;
+    uint_t start = this->nodes[i].beginning;
+    uint_t end = this->nodes[i].end;
 #if ENABLE_PMA_LOCK == 1
-    nodes[i].lock.lock_shared();
+    this->nodes[i].lock.lock_shared();
 #endif
     for (uint_t j = start + 1; j < end; j++) {
-      if (edges.dests[j]!=NULL_VAL) {
+      if (this->edges.dests[j] != NULL_VAL)
+      {
         output.push_back(
-            make_tuple(i, edges.dests[j], edges.vals[j]));
+            make_tuple(i, this->edges.dests[j], this->edges.vals[j]));
       }
     }
 #if ENABLE_PMA_LOCK == 1
-    nodes[i].lock.unlock_shared();
+    this->nodes[i].lock.unlock_shared();
 #endif
     }
   // edges.list_lock.unlock();
 #if ENABLE_PMA_LOCK == 1
-  node_lock.unlock_shared(); // lock node array
+    this->node_lock.unlock_shared(); // lock node array
 #endif
   return output;
 }
@@ -201,24 +203,24 @@ vector<tuple<uint32_t, uint32_t, uint32_t>> PMA::get_edges() {
 
 uint64_t PMA::get_n() {
 #if ENABLE_PMA_LOCK == 1
-  node_lock.lock_shared();
+  this->node_lock.lock_shared();
 #endif
-  uint64_t size = nodes.size();
+  uint64_t size = this->nodes.size();
 #if ENABLE_PMA_LOCK == 1
-  node_lock.unlock_shared();
+  this->node_lock.unlock_shared();
 #endif
   return size;
 }
 
 uint64_t PMA::get_size() {
 #if ENABLE_PMA_LOCK == 1
-  node_lock.lock_shared();
+  this->node_lock.lock_shared();
 #endif
   uint64_t size = nodes.capacity() * sizeof(node_t);
   size += sizeof(PMA);
-  size += (uint64_t)edges.N * sizeof(edge_t);
+  size += (uint64_t)this->edges.N * sizeof(edge_t);
 #if ENABLE_PMA_LOCK == 1
-  node_lock.unlock_shared();
+  this->node_lock.unlock_shared();
 #endif
   return size;
 }
@@ -229,7 +231,7 @@ void print_array(edge_list_t *edges) {
   for (uint_t i = 0; i < edges->N; i++) {
     if (edges->dests[i]==NULL_VAL) {
       printf("%d-x ", i);
-    } else if ((edges->dests[i]==SENT_VAL) || i == 0) {
+    } else if ((edges->dests[i] == SENT_VAL) || i == 0) {
       uint32_t value = edges->vals[i];
       if (value == NULL_VAL) {
         value = 0;
@@ -245,7 +247,7 @@ void print_array(edge_list_t *edges) {
 void PMA::print_array(uint64_t worker_num) {
   printf("worker num: %lu, N = %d, logN = %d, density_limit = %f\n", worker_num, edges.N, edges.logN, edges.density_limit);
   for (uint_t i = 0; i < edges.N; i++) {
-    if (edges.dests[i]==NULL_VAL) {
+    if (edges.dests[i] == NULL_VAL) {
       printf("%d-x ", i);
     } else if ((edges.dests[i] == SENT_VAL) || i == 0) {
       uint32_t value = edges.vals[i];
@@ -309,16 +311,19 @@ uint_t get_density_count(edge_list_t *list, uint_t index, uint_t len) {
     return full;
   }
 #endif
-  for (uint_t i = index; i < index+len; i+=4) {
+  for (uint_t i = index; i < index + len; i+=4) {
 #ifdef __SSE2__
       __m128i a = _mm_load_si128((__m128i *)& dests[i]);
-      __m128i b =  _mm_set1_epi32(NULL_VAL);
-      uint32_t add = 4-__builtin_popcount(_mm_movemask_ps((__m128) _mm_cmpeq_epi32(a, b)));
+      __m128i b = _mm_set1_epi32(NULL_VAL);
+      uint32_t add = 4 - __builtin_popcount(_mm_movemask_ps((__m128) _mm_cmpeq_epi32(a, b)));
 #else
-      uint32_t add = (dests[i]!=NULL_VAL) + (dests[i+1]!=NULL_VAL) + (dests[i+2]!=NULL_VAL) + (dests[i+3]!=NULL_VAL);
+      uint32_t add = (dests[i] != NULL_VAL) + 
+                     (dests[i + 1] != NULL_VAL) + 
+                     (dests[i + 2] != NULL_VAL) + 
+                     (dests[i + 3] != NULL_VAL);
 #endif
       //__sync_fetch_and_add(&full, add);
-      full+=add;
+      full += add;
   }
   return full;
   /*
@@ -332,21 +337,24 @@ uint_t get_density_count(edge_list_t *list, uint_t index, uint_t len) {
   
 }
 
-uint64_t get_density_count_par(edge_list_t *list, uint_t index, uint_t len, std::vector<uint_t> &sub_counts) {
-  std::vector<uint64_t> worker_counts(getWorkers()*8);
+uint64_t get_density_count_par(edge_list_t *list, 
+                               uint_t index, 
+                               uint_t len, 
+                               std::vector<uint_t> &sub_counts) {
+  std::vector<uint64_t> worker_counts(getWorkers() * 8);
   uint32_t volatile  * volatile dests = list->dests;
-  parallel_for(uint_t j = index; j < index+len; j+= REDISTRIBUTE_PAR_SIZE) {
+  parallel_for(uint_t j = index; j < index + len; j += REDISTRIBUTE_PAR_SIZE) {
     uint_t full = 0;
-    for (uint_t i = j; i < j+REDISTRIBUTE_PAR_SIZE; i+=4) {
-        uint32_t add = (dests[i]!=NULL_VAL) + (dests[i+1]!=NULL_VAL) + (dests[i+2]!=NULL_VAL) + (dests[i+3]!=NULL_VAL);
-        full+=add;
+    for (uint_t i = j; i < j + REDISTRIBUTE_PAR_SIZE; i += 4) {
+        uint32_t add = (dests[i] != NULL_VAL) + (dests[i + 1] != NULL_VAL) + (dests[i + 2] != NULL_VAL) + (dests[i + 3] != NULL_VAL);
+        full += add;
     }
-    worker_counts[getWorkerNum()]+=full;
-    sub_counts[(j-index)/REDISTRIBUTE_PAR_SIZE] = full;
+    worker_counts[getWorkerNum()] += full;
+    sub_counts[(j - index) / REDISTRIBUTE_PAR_SIZE] = full;
   }
 
   uint64_t total = 0;  
-  for (uint64_t i = 0; i < worker_counts.size(); i+=8) {
+  for (uint64_t i = 0; i < worker_counts.size(); i += 8) {
     total += worker_counts[i];
   }
   return total;  
@@ -360,10 +368,10 @@ double get_density(edge_list_t *list, uint_t index, uint_t len) {
 }
 
 bool check_no_full_leaves(edge_list_t *list, uint_t index, uint_t len) {
-  for (uint_t i = index; i < index + len; i+= list->logN) {
+  for (uint_t i = index; i < index + len; i += list->logN) {
     bool full = true;
     for (uint_t j = i; j < i + list->logN; j++) {
-       if (list->dests[j]==NULL_VAL) {
+       if (list->dests[j] == NULL_VAL) {
         full = false;
       }
     }
@@ -400,15 +408,16 @@ pair_double density_bound(edge_list_t *list, int depth) {
 uint_t PMA::fix_sentinel(uint32_t node_index, uint_t in) {
   // we know the first sentinal will never move so we just ignore it
   assert(node_index > 0);
-  //node_lock.lock_shared();
-  nodes[node_index - 1].end = in;
+  // node_lock.lock_shared();
+  this->nodes[node_index - 1].end = in;
 
-  nodes[node_index].beginning = in;
-  if (node_index == nodes.size() - 1) {
-    nodes[node_index].end = edges.N - 1;
+  this->nodes[node_index].beginning = in;
+  if (node_index == this->nodes.size() - 1)
+  {
+    this->nodes[node_index].end = this->edges.N - 1;
   }
   //node_lock.unlock_shared();
-  return nodes[node_index].beginning + nodes[node_index].num_neighbors;
+  return this->nodes[node_index].beginning + this->nodes[node_index].num_neighbors;
 }
 
 

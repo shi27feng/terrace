@@ -69,7 +69,7 @@ typedef struct edge_list {
   uint32_t loglogN;
   uint32_t mask_for_leaf;
   uint32_t * vals;
-  uint32_t * dests;
+  uint32_t * dests;     // edge(i, j) = (idx, edge_list[idx])
 
   // Lock list_lock;
 
